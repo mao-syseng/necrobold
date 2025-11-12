@@ -1,6 +1,9 @@
 # Charalva
 Barbuta inspired platformer
 
+<img width="1433" height="721" alt="image" src="https://github.com/user-attachments/assets/86fe1601-91fb-4e17-9a30-94de44e42870" />
+
+
 run game with `/Applications/love.app/Contents/MacOS/love .`
 
 
