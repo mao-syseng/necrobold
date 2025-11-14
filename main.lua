@@ -21,10 +21,10 @@ function love.load()
         flipH = false,
         moving = false,
         onGround = false,
+        vx = 0, -- horizontal velocity
         vy = 0,
         spriteOffsetX = 32, -- adjust as needed for your sprite
         spriteOffsetY = 48, -- adjust as needed for your sprite
-        airMove = 0, -- horizontal speed while in air
     }
 
     love.window.setTitle("Charalva")
@@ -54,27 +54,25 @@ end
 function love.update(dt)
     local moving = false
     local gravity = 400  -- pixels per second squared
-    local onGround = false
+    local wasOnGround = player.onGround
 
-    -- Horizontal movement (block if jumping/falling)
-
-    local dx = 0
-    if player.onGround and player.animation ~= player.animations.jump and player.animation ~= player.animations.fall then
+    -- Horizontal movement: set vx on ground, preserve in air
+    if player.onGround and player.animation ~= player.animations.jump and player.animation ~= player.animations.fall and player.animation ~= player.animations.atk1 then
         if love.keyboard.isDown("left") or love.keyboard.isDown("a") then
-            dx = -player.speed * dt
+            player.vx = -player.speed
             player.flipH = true
             moving = true
-        end
-        if love.keyboard.isDown("right") or love.keyboard.isDown("d") then
-            dx = player.speed * dt
+        elseif love.keyboard.isDown("right") or love.keyboard.isDown("d") then
+            player.vx = player.speed
             player.flipH = false
             moving = true
+        else
+            player.vx = 0
         end
-        player.airMove = 0 -- reset airMove on ground
-    else
-        -- In air: use airMove for horizontal movement
-        dx = player.airMove * dt
     end
+
+    -- dx always from vx
+    local dx = player.vx * dt
 
     -- Apply gravity
     player.vy = player.vy + gravity * dt
@@ -97,6 +95,13 @@ function love.update(dt)
             player.onGround = true
         elseif col.normal.y > 0 then  -- hit head on ceiling
             player.vy = 0
+        end
+    end
+
+    -- If just landed, stop vx if no input
+    if not wasOnGround and player.onGround then
+        if not (love.keyboard.isDown("left") or love.keyboard.isDown("a") or love.keyboard.isDown("right") or love.keyboard.isDown("d")) then
+            player.vx = 0
         end
     end
 
@@ -185,22 +190,16 @@ function love.keypressed(key)
     if key == "escape" then
         love.event.quit()
     end
-    if key == "space" and player.onGround then
+    if key == "space" and player.onGround and player.animation ~= player.animations.atk1 then
         player.vy = -160  -- jump velocity
         player.onGround = false
-        -- Set airMove to current movement direction
-        if love.keyboard.isDown("left") or love.keyboard.isDown("a") then
-            player.airMove = -player.speed
-        elseif love.keyboard.isDown("right") or love.keyboard.isDown("d") then
-            player.airMove = player.speed
-        else
-            player.airMove = 0
-        end
+        -- vx is already set by input, so just keep it
     end
-    if key == "x" then
+    if key == "x" and player.onGround and player.animation ~= player.animations.atk1 then
         player.animation = player.animations.atk1
         player.animation:gotoFrame(1)
         player.animation:resume()
+        player.vx = 0 -- stop movement while attacking
     end
     if key == "o" then
         local isFullscreen = love.window.getFullscreen()
