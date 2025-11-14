@@ -9,6 +9,7 @@ tileSize = 16
 tileWidth = virtualWidth / tileSize -- 30
 tileHeight = 16 -- virtualHeight / tileSize = 16.875, round to 16
 canvas = nil
+bumpDebug = false
 
 function love.load()
     player = {
@@ -21,6 +22,9 @@ function love.load()
         moving = false,
         onGround = false,
         vy = 0,
+        spriteOffsetX = 32, -- adjust as needed for your sprite
+        spriteOffsetY = 48, -- adjust as needed for your sprite
+        airMove = 0, -- horizontal speed while in air
     }
 
     love.window.setTitle("Charalva")
@@ -30,7 +34,7 @@ function love.load()
     world = bump.newWorld()
     gameMap = sti('tiled/map.lua', { "bump" })
     gameMap:bump_init(world)
-    world:add(player, player.x, player.y, player.w, player.h)
+    world:add(player, player.x, player.y, player.w/2, player.h/2)
 
     
     player.image = love.graphics.newImage("/assets/player.png")
@@ -40,6 +44,8 @@ function love.load()
         idle = anim8.newAnimation(g('1-7', 1), animationSpeed),
         run = anim8.newAnimation(g('1-8', 2), animationSpeed),
         atk1 = anim8.newAnimation(g('9-17', 4), animationSpeed),
+        jump = anim8.newAnimation(g('1-1', 7), animationSpeed), -- adjust frames as needed
+        fall = anim8.newAnimation(g('1-1', 8), animationSpeed), -- adjust frames as needed
     }
     
     player.animation = player.animations.idle
@@ -50,17 +56,24 @@ function love.update(dt)
     local gravity = 400  -- pixels per second squared
     local onGround = false
 
-    -- Horizontal movement
+    -- Horizontal movement (block if jumping/falling)
+
     local dx = 0
-    if love.keyboard.isDown("left") or love.keyboard.isDown("a") then
-        dx = -player.speed * dt
-        player.flipH = true
-        moving = true
-    end
-    if love.keyboard.isDown("right") or love.keyboard.isDown("d") then
-        dx = player.speed * dt
-        player.flipH = false
-        moving = true
+    if player.onGround and player.animation ~= player.animations.jump and player.animation ~= player.animations.fall then
+        if love.keyboard.isDown("left") or love.keyboard.isDown("a") then
+            dx = -player.speed * dt
+            player.flipH = true
+            moving = true
+        end
+        if love.keyboard.isDown("right") or love.keyboard.isDown("d") then
+            dx = player.speed * dt
+            player.flipH = false
+            moving = true
+        end
+        player.airMove = 0 -- reset airMove on ground
+    else
+        -- In air: use airMove for horizontal movement
+        dx = player.airMove * dt
     end
 
     -- Apply gravity
@@ -88,7 +101,13 @@ function love.update(dt)
     end
 
     -- Animation logic 
-    if player.animation ~= player.animations.atk1 then
+    if not player.onGround then
+        if player.vy < 0 then
+            player.animation = player.animations.jump
+        else
+            player.animation = player.animations.fall
+        end
+    elseif player.animation ~= player.animations.atk1 then
         if moving then
             player.animation = player.animations.run
         else
@@ -98,9 +117,15 @@ function love.update(dt)
 
     player.animation:update(dt)
 
-    -- If attack animation finished, return to idle/run
+    -- If attack animation finished, return to idle/run/jump/fall
     if player.animation == player.animations.atk1 and player.animation.position == #player.animation.frames then
-        if moving then
+        if not player.onGround then
+            if player.vy < 0 then
+                player.animation = player.animations.jump
+            else
+                player.animation = player.animations.fall
+            end
+        elseif moving then
             player.animation = player.animations.run
         else
             player.animation = player.animations.idle
@@ -118,8 +143,17 @@ function love.draw()
     gameMap:draw()
     -- Draw player
     local scaleX = player.flipH and -1 or 1
-    local offsetX = 30
-    player.animation:draw(player.image, player.x, player.y, 0, scaleX, 1, offsetX, 23)
+    local offsetX = player.flipH and (64 - player.spriteOffsetX - (player.w /2)) or player.spriteOffsetX -- the offset is different depending on if the sprite is flipped or not. This is pretty bad and must be an easier fix, but did this with trial and error and works for now.
+    player.animation:draw(
+        player.image,
+        player.x + player.w/2,
+        player.y + player.h,
+        0,
+        scaleX,
+        1,
+        offsetX,
+        player.spriteOffsetY
+    )
     love.graphics.setCanvas()
     -- Now scale the canvas to fit the actual window, using integer scale for pixel-perfect rendering
     local ww, wh = love.graphics.getWidth(), love.graphics.getHeight()
@@ -131,16 +165,37 @@ function love.draw()
     love.graphics.rectangle("fill", 0, 0, ww, wh) -- black bars
     love.graphics.setColor(1, 1, 1)
     love.graphics.draw(canvas, offsetXScreen, offsetYScreen, 0, scale, scale)
+
+    -- Debug: draw all bump collision boxes (in screen space) if enabled
+    if bumpDebug then
+        love.graphics.push()
+        love.graphics.translate(offsetXScreen, offsetYScreen)
+        love.graphics.scale(scale, scale)
+        love.graphics.setColor(1, 0, 0, 0.7)
+        for _, item in ipairs(world:getItems()) do
+            local x, y, w, h = world:getRect(item)
+            love.graphics.rectangle("line", x, y, w, h)
+        end
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.pop()
+    end
 end
 
 function love.keypressed(key)
     if key == "escape" then
         love.event.quit()
     end
-      -- Jump (optional)
     if key == "space" and player.onGround then
         player.vy = -160  -- jump velocity
         player.onGround = false
+        -- Set airMove to current movement direction
+        if love.keyboard.isDown("left") or love.keyboard.isDown("a") then
+            player.airMove = -player.speed
+        elseif love.keyboard.isDown("right") or love.keyboard.isDown("d") then
+            player.airMove = player.speed
+        else
+            player.airMove = 0
+        end
     end
     if key == "x" then
         player.animation = player.animations.atk1
