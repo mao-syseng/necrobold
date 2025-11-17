@@ -23,8 +23,8 @@ function love.load()
         onGround = false,
         vx = 0, -- horizontal velocity
         vy = 0,
-        spriteOffsetX = 32, -- adjust as needed for your sprite
-        spriteOffsetY = 48, -- adjust as needed for your sprite
+        spriteOffsetX = 32, 
+        spriteOffsetY = 48, 
     }
 
     love.window.setTitle("Charalva")
@@ -44,8 +44,8 @@ function love.load()
         idle = anim8.newAnimation(g('1-7', 1), animationSpeed),
         run = anim8.newAnimation(g('1-8', 2), animationSpeed),
         atk1 = anim8.newAnimation(g('9-17', 4), animationSpeed),
-        jump = anim8.newAnimation(g('1-1', 7), animationSpeed), -- adjust frames as needed
-        fall = anim8.newAnimation(g('1-1', 8), animationSpeed), -- adjust frames as needed
+        jump = anim8.newAnimation(g('1-1', 7), animationSpeed),
+        fall = anim8.newAnimation(g('1-1', 8), animationSpeed),
     }
     
     player.animation = player.animations.idle
@@ -193,7 +193,6 @@ function love.keypressed(key)
     if key == "space" and player.onGround and player.animation ~= player.animations.atk1 then
         player.vy = -160  -- jump velocity
         player.onGround = false
-        -- vx is already set by input, so just keep it
     end
     if key == "x" and player.onGround and player.animation ~= player.animations.atk1 then
         player.animation = player.animations.atk1
